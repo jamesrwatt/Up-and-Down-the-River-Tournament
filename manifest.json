@@ -1,0 +1,17 @@
+{
+  "short_name": "U&D River",
+  "name": "Up & Down the River Scorekeeper",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2618/2618245.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "./",
+  "background_color": "#f4f7f6",
+  "display": "standalone",
+  "scope": "./",
+  "theme_color": "#2c3e50"
+}
