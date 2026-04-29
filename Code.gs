@@ -23,11 +23,12 @@ function doGet(e) {
 }
 
 /**
- * TURBO POST: Does all the heavy "writing" and "calculating" only when data changes.
+ * TURBO POST: Handles archiving games and resetting the cloud data.
  */
 function doPost(e) {
   const lock = LockService.getPublicLock();
   try {
+    // Wait up to 10 seconds for other processes to finish
     lock.waitLock(10000); 
     
     let payload;
@@ -37,105 +38,134 @@ function doPost(e) {
       payload = e.parameter; 
     }
 
-    if (payload.key !== ADMIN_KEY) {
-      return ContentService.createTextOutput("Unauthorized").setMimeType(ContentService.MimeType.TEXT);
-    }
-
-    const scriptProp = PropertiesService.getScriptProperties();
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-
-    // 1. HANDLE RESET
-    if (payload.type === "RESET_ALL") {
-      scriptProp.deleteAllProperties();
+    // --- HANDLE RESET COMMAND ---
+    if (payload.type === "CLEAR_STATS") {
+      if (payload.key !== ADMIN_KEY) throw new Error("Unauthorized Reset Attempt");
+      
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      
+      // 1. Clear the Game Archive
       const archiveSheet = ss.getSheetByName("Game Archive");
-      if (archiveSheet) archiveSheet.clear();
-      const hofSheet = ss.getSheetByName("Hall of Fame");
-      if (hofSheet) hofSheet.clear();
-      return ContentService.createTextOutput("Total Reset Successful");
-    }
-
-    // 2. HANDLE ARCHIVE (The Workhorse)
-    if (payload.type === "ARCHIVE_GAME") {
-      if(payload.gameData) {
-        // Step A: Save raw data to the Archive sheet
-        archiveGameToTab(payload.gameData);
-        
-        // Step B: Recompute stats from the full Archive
-        const freshStats = getRecomputedHOF();
-        const freshStatsString = JSON.stringify(freshStats);
-        
-        // Step C: Update the "Snapshot" for the Turbo doGet
-        scriptProp.setProperty('HOF_SNAPSHOT', freshStatsString);
-        
-        // Step D: Update the visual Hall of Fame sheet
-        updateHOFSheet(freshStats);
-        
-        return ContentService.createTextOutput("Game Archived, Cache Updated, and Sheet Refreshed.");
+      if (archiveSheet) {
+        archiveSheet.clear(); 
       }
+      
+      // 2. Reset the internal game counter to zero
+      PropertiesService.getScriptProperties().setProperty('game_counter', "0");
+      
+      // 3. Clear the Hall of Fame visual sheet
+      const hofSheet = ss.getSheetByName("Hall of Fame");
+      if (hofSheet) {
+        hofSheet.clear();
+      }
+
+      // 4. Wipe the Turbo Cache so the next 'GET' calculates from scratch
+      PropertiesService.getScriptProperties().deleteProperty('HOF_SNAPSHOT');
+      
+      return ContentService.createTextOutput("Cloud Wiped Successfully").setMimeType(ContentService.MimeType.TEXT);
     }
 
-    return ContentService.createTextOutput("Unknown Type");
+    // --- HANDLE GAME ARCHIVE ---
+    if (payload.type === "ARCHIVE_GAME") {
+      if (payload.key !== ADMIN_KEY) throw new Error("Invalid Admin Key");
+
+      // Save the raw game data to the Archive sheet
+      archiveGameToTab(payload.gameData);
+
+      // Re-calculate the entire Hall of Fame statistics
+      const updatedHof = getRecomputedHOF();
+      const hofString = JSON.stringify(updatedHof);
+
+      // Update the visual Google Sheet for people to look at
+      updateHOFSheet(updatedHof);
+
+      // Update the Turbo Cache so the mobile apps get the new stats instantly
+      PropertiesService.getScriptProperties().setProperty('HOF_SNAPSHOT', hofString);
+
+      return ContentService.createTextOutput("Success").setMimeType(ContentService.MimeType.TEXT);
+    }
 
   } catch (f) {
-    return ContentService.createTextOutput("Error: " + f.toString());
+    return ContentService.createTextOutput("Error: " + f.toString()).setMimeType(ContentService.MimeType.TEXT);
   } finally {
     lock.releaseLock();
   }
 }
 
+/**
+ * Updated Archive logic to handle dynamic round counts (5-8 players).
+ */
 function archiveGameToTab(gameData) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const scriptProp = PropertiesService.getScriptProperties();
-  const archiveName = "Game Archive";
-  let sheet = ss.getSheetByName(archiveName);
-  if (!sheet) { sheet = ss.insertSheet(archiveName); }
-
-  // Look at the sheet to find the actual last game number
-  let lastRow = sheet.getLastRow();
-  let lastGameNumInSheet = (lastRow > 1) ? Number(sheet.getRange(lastRow, 1).getValue()) : 0;
-  
-  // Use whichever is higher: the internal counter or the sheet's actual data
-  let currentCounter = Number(scriptProp.getProperty('game_counter') || "0");
-  let gameNum = Math.max(lastGameNumInSheet, currentCounter) + 1;
-  
-  scriptProp.setProperty('game_counter', gameNum.toString());
+  let sheet = ss.getSheetByName("Game Archive");
+  if (!sheet) sheet = ss.insertSheet("Game Archive");
 
   const players = gameData.players;
   const gameDate = new Date().toLocaleDateString();
-  const rounds = [1,2,3,4,5,6,7,8,9,10,9,8,7,6,5,4,3,2,1];
   
+  const scriptProp = PropertiesService.getScriptProperties();
+  let gameNum = parseInt(scriptProp.getProperty('game_counter') || "0") + 1;
+  scriptProp.setProperty('game_counter', gameNum.toString());
+
+  // --- DYNAMIC HEADER LOGIC ---
+  // Calculate how many columns we NEED for this specific game
+  // 4 base columns + 3 columns per player (Bid, Tricks, Score)
+  const requiredColumns = 4 + (players.length * 3);
+  const currentColumns = sheet.getLastColumn();
+  
+  // Setup Headers if the sheet is now empty (which it will be for Game #1)
   if (sheet.getLastRow() === 0) {
-    let headers = ["Game #", "Date", "Round", "Trump"];
+    let headers = ["Game #", "Date", "Cards", "Trump"];
     players.forEach(p => {
-      headers.push(p.name + " (B)", p.name + " (T)", p.name + " (Σ)");
+      headers.push(`${p.name} Bid`, `${p.name} Tricks`, `${p.name} Score`);
     });
-    sheet.appendRow(headers);
-    sheet.setFrozenRows(1);
-    sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#cfe2f3");
+
+    // Overwrite the first row with the expanded header set
+    sheet.getRange(1, 1, 1, headers.length)
+         .setValues([headers])
+         .setFontWeight("bold")
+         .setBackground("#d9ead3");
   }
+  // -----------------------------
+
+  // Dynamic Round Calculation (Standard 52 card deck math)
+  const maxCards = Math.min(10, Math.floor(52 / players.length));
+  const up = Array.from({length: maxCards}, (_, i) => i + 1);
+  const down = [...up].reverse().slice(1);
+  const rounds = up.concat(down);
 
   let allRows = [];
-  for (let r = 0; r < 19; r++) {
-    let row = [gameNum, gameDate, rounds[r], getTrumpLabel(r)];
+  for (let r = 0; r < rounds.length; r++) {
+    let row = [gameNum, gameDate, rounds[r], getTrumpLabel(r, players.length)];
     players.forEach(p => {
-      let h = p.history[r] || {bid: "-", tricks: "-", totalAtRound: "-"};
+      let h = p.history[r] || {bid: 0, tricks: 0, totalAtRound: 0};
       row.push(h.bid, h.tricks, h.totalAtRound);
     });
     allRows.push(row);
   }
 
-  const startRow = sheet.getLastRow() + 1;
-  sheet.getRange(startRow, 1, allRows.length, allRows[0].length).setValues(allRows);
-  sheet.autoResizeColumns(1, allRows[0].length);
+  sheet.getRange(sheet.getLastRow() + 1, 1, allRows.length, allRows[0].length).setValues(allRows);
 }
 
-function getTrumpLabel(idx) {
-  if (idx === 7 || idx === 9 || idx === 11) return "NT";
+function getTrumpLabel(idx, numPlayers) {
+  const maxCards = Math.min(10, Math.floor(52 / numPlayers));
+  const peakIdx = maxCards - 1;
+
+  // No Trump (NT) occurs at the peak round and the rounds immediately flanking it
+  if (idx === peakIdx - 1 || idx === peakIdx || idx === peakIdx + 1) {
+    return "NT";
+  }
+
   const suits = ["H", "S", "D", "C"];
-  if (idx === 8) return suits[idx % 4];
-  if (idx === 10) return suits[(idx - 3) % 4];
-  let adj = (idx > 11) ? idx - 5 : idx;
-  return suits[adj % 4];
+  let suitIdx;
+  if (idx < peakIdx - 1) {
+    suitIdx = idx;
+  } else {
+    // Adjust rotation to skip the 3 NT rounds
+    suitIdx = idx - 3;
+  }
+  
+  return suits[suitIdx % 4];
 }
 
 function getRecomputedHOF() {
@@ -146,7 +176,9 @@ function getRecomputedHOF() {
   const data = sheet.getDataRange().getValues();
   if (data.length < 2) return {};
 
-  const headers = data[0];
+  const rawHeaders = data[0];
+  const headers = rawHeaders.map(h => h.toString().replace(/ Bid/gi, "").trim());
+
   const rows = data.slice(1);
   let hof = {};
   let games = {};
@@ -335,6 +367,7 @@ function updateHOFSheet(hofData) {
   sheet.setFrozenRows(1);
   sheet.autoResizeColumns(1, playerNames.length + 1);
 }
+
 
 function getStreakFromScript(arr, target) {
   let max = 0, cur = 0;
