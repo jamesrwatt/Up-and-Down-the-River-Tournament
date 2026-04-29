@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Up & Down the River - Cloud Sync</title>
+    <title>Up & Down the River Tournament</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2c3e50">
@@ -117,10 +117,21 @@
 </div>
 
 <div class="container">
-    <div style="display:flex; justify-content: space-between; align-items:center;">
-        <h2 style="margin:0">Up & Down the River</h2>
+    <!-- <div style="display:flex; justify-content: space-between; align-items:center;">
+        <h2 style="margin:0">Up & Down the River Tournament</h2>
         <button onclick="toggleSettings()" style="width:40px; padding:5px; background:none; color:black; font-size:1.5rem;">⚙️</button>
+    </div> -->
+
+    <div style="display:flex; justify-content: space-between; align-items:center; position: relative;">
+        <h2 id="main-title" style="margin:0">Up & Down the River</h2>
+        
+        <!-- Centered Icon (Absolute) -->
+        <img src="icon.png" alt="Icon" style="position: absolute; left: 50%; transform: translateX(-50%); height: 50px; width: auto;">
+
+        <button onclick="toggleSettings()" style="width:40px; padding:5px; background:none; color:black; font-size:1.5rem; z-index: 10;">⚙️</button>
     </div>
+
+        
     <div id="sync-status" class="sync-indicator">Initializing...</div>
 
     <div id="settings-panel" class="settings-panel">
@@ -148,7 +159,7 @@
         <label style="display: block;">Google Web App URL:</label>
         <input type="text" id="sync-url" placeholder="https://script.google.com/..." style="width:100%; margin-bottom:15px; padding: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box;">
         
-        <button onclick="saveSettings()">Save & Sync</button>
+        <button onclick="saveSettings()">Save & Sync</button>       
     </div>
 
     <div id="setup-view">
@@ -389,6 +400,7 @@
         const setupControls = document.getElementById('setup-controls');
         if (setupControls) setupControls.style.display = isScoreKeeper ? 'block' : 'none';
     }
+
     function startGame() {
         localStorage.removeItem('river_v3_currentGame');
         document.getElementById('resume-msg').style.display = 'none';
@@ -396,26 +408,34 @@
         const names = document.getElementById('player-names').value.split(',').filter(n=>n.trim());
         players = names.map(n=>({ name: n.trim(), total: 0, history: [], currentBid: 0 }));
         
+        // Calculate max cards (Max 10, or 52 / players)
+        const maxCards = Math.min(10, Math.floor(52 / players.length));
+        
+        // Generate rounds: 1 up to maxCards, then maxCards back down to 1
+        // We filter to ensure the peak (maxCards) only appears once in the middle
+        const up = Array.from({length: maxCards}, (_, i) => i + 1);
+        const down = [...up].reverse().slice(1);
+        window.currentRounds = up.concat(down); 
+
         threshold = 170 - (10 * players.length); 
         currentIdx = 0; 
         phase = 'BIDDING';
 
         localStorage.setItem('skip_next_fetch', 'true'); 
-        
         initUI();
     }
 
     function resumeGame() {
-        const rawData = localStorage.getItem('river_v3_currentGame');
-        if (!rawData) {
-            alert("No saved game found!");
-            return;
-        }
-
-        const data = JSON.parse(rawData);
+        const data = JSON.parse(localStorage.getItem('river_v3_currentGame'));
         players = data.players; 
         currentIdx = data.currentIdx; 
         phase = data.phase;
+
+        // RE-CALCULATE the round structure based on the saved player count
+        const maxCards = Math.min(10, Math.floor(52 / players.length));
+        const up = Array.from({length: maxCards}, (_, i) => i + 1);
+        const down = [...up].reverse().slice(1);
+        window.currentRounds = up.concat(down);
 
         initUI(); 
         refreshTable();
@@ -425,14 +445,20 @@
         document.getElementById('setup-view').style.display = 'none';
         document.getElementById('game-view').style.display = 'block';
         const head = document.getElementById('matrix-head');
-        head.innerHTML = `<tr><th>Edit</th><th>Rd</th><th>T</th>` + players.map(p => `<th colspan="3">${p.name}</th>`).join('') + `</tr><tr><th></th><th></th><th></th>` + players.map(()=>`<td>B</td><td>T</td><td>Σ</td>`).join('') + `</tr>`;
+        
+        // Header stays similar, but ensure it clears properly
+        head.innerHTML = `<tr><th>Edit</th><th>Rd</th><th>T</th>` + 
+            players.map(p => `<th colspan="3">${p.name}</th>`).join('') + 
+            `</tr><tr><th></th><th></th><th></th>` + 
+            players.map(()=>`<td>B</td><td>T</td><td>Σ</td>`).join('') + `</tr>`;
+        
         renderRound();
     }
 
     function renderRound() {
         const idx = isEditing ? editRoundIdx : currentIdx;
-        const cards = rounds[idx], trump = getTrump(idx);
-        document.getElementById('round-number').innerText = `ROUND ${idx+1} / 19`;
+        const cards = window.currentRounds[idx], trump = getTrump(idx);
+        document.getElementById('round-number').innerText = `ROUND ${idx+1} / ${window.currentRounds.length}`;
         document.getElementById('cards-count').innerText = `${cards} CARDS`;
         document.getElementById('trump-display').innerText = trump.l;
         document.getElementById('trump-display').className = `trump-indicator ${trump.c}`;
@@ -448,7 +474,7 @@
 
     function validate() {
         const idx = isEditing ? editRoundIdx : currentIdx;
-        const cards = rounds[idx], btn = document.getElementById('action-btn'), warn = document.getElementById('bid-warning');
+        const cards = window.currentRounds[idx], btn = document.getElementById('action-btn'), warn = document.getElementById('bid-warning');
         let inputs = players.map((p, i) => {
             const v = document.getElementById(`p-input-${i}`).value;
             return v === "" ? (phase==='SCORING'?(isEditing?p.history[idx].bid:p.currentBid):0) : parseInt(v);
@@ -479,7 +505,7 @@
             recalculate();
             if (isEditing) { isEditing = false; phase = 'BIDDING'; } else { currentIdx++; phase = 'BIDDING'; }
             refreshTable();
-            if (currentIdx >= rounds.length) endTournament(); else renderRound();
+            if (currentIdx >= window.currentRounds.length) endTournament(); else renderRound();
         }
         saveState();
     }
@@ -487,23 +513,45 @@
     function recalculate() { players.forEach(p => { let s = 0; p.history.forEach(h => { s += h.pts; h.totalAtRound = s; }); p.total = s; }); }
 
     function refreshTable() {
-        const body = document.getElementById('matrix-body'); body.innerHTML = "";
+        const body = document.getElementById('matrix-body'); 
+        body.innerHTML = "";
+        
         players[0].history.forEach((_, r) => {
-            let row = `<tr class="${(isEditing && r===editRoundIdx)?'editing-row':''}"><td><button onclick="editRound(${r})">✏️</button></td><td>${rounds[r]}</td><td class="${getTrump(r).c}">${getTrump(r).l[0]}</td>`;
-            players.forEach(p => row += `<td class="${p.history[r].set?'missed':'made'}">${p.history[r].bid}</td><td class="${p.history[r].set?'missed':'made'}">${p.history[r].tricks}</td><td style="font-weight:bold">${p.history[r].totalAtRound}</td>`);
+            // Use window.currentRounds[r] to display the correct card count in the "Rd" column
+            let row = `<tr class="${(isEditing && r===editRoundIdx)?'editing-row':''}">
+                <td><button onclick="editRound(${r})">✏️</button></td>
+                <td>${window.currentRounds[r]}</td> 
+                <td class="${getTrump(r).c}">${getTrump(r).l[0]}</td>`;
+                
+            players.forEach(p => {
+                row += `<td class="${p.history[r].set?'missed':'made'}">${p.history[r].bid}</td>
+                        <td class="${p.history[r].set?'missed':'made'}">${p.history[r].tricks}</td>
+                        <td style="font-weight:bold">${p.history[r].totalAtRound}</td>`;
+            });
             body.innerHTML += row + "</tr>";
         });
     }
 
     function editRound(r) { isEditing = true; editRoundIdx = r; phase = 'BIDDING'; refreshTable(); renderRound(); }
+    
     function getTrump(idx) {
-        if (idx === 7) return {l:'NT', c:'suit-NT'};  
-        if (idx === 8) return suits[idx % 4];         
-        if (idx === 9) return {l:'NT', c:'suit-NT'};  
-        if (idx === 10) return suits[(idx - 3) % 4];  
-        if (idx === 11) return {l:'NT', c:'suit-NT'}; 
-        let adj = (idx > 11) ? idx - 5 : idx; 
-        return suits[adj % 4];
+        const maxCards = Math.min(10, Math.floor(52 / players.length));
+        const peakIdx = maxCards - 1; // The index where cards are at the maximum
+
+        // No Trump (NT) occurs at the peak round and the rounds immediately flanking it
+        if (idx === peakIdx - 1 || idx === peakIdx || idx === peakIdx + 1) {
+            return {l: 'NT', c: 'suit-NT'};
+        }
+
+        // Adjust suit rotation to skip the 3 NT rounds in the middle
+        let suitIdx;
+        if (idx < peakIdx - 1) {
+            suitIdx = idx;
+        } else {
+            suitIdx = idx - 3;
+        }
+        
+        return suits[suitIdx % 4];
     }
     
     function saveState() {
@@ -735,9 +783,10 @@
             if (isAdmin && CURRENT_CONFIG.url && CURRENT_CONFIG.key) {
                 await fetch(CURRENT_CONFIG.url, {
                     method: 'POST',
+                    // This line below must match the string in your Code.gs exactly
                     body: JSON.stringify({
                         key: CURRENT_CONFIG.key,
-                        type: "CLEAR_STATS"
+                        type: "CLEAR_STATS" 
                     })
                 });
             }
@@ -745,7 +794,7 @@
             location.reload();
         } catch (err) {
             console.error("Reset Error:", err);
-            alert("Error during reset.");
+            location.reload();
         }
     }
 </script>
