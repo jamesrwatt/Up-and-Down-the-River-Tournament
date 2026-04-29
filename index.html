@@ -116,23 +116,37 @@
     </div>
 </div>
 
-<div class="container">
-    <!-- <div style="display:flex; justify-content: space-between; align-items:center;">
-        <h2 style="margin:0">Up & Down the River Tournament</h2>
-        <button onclick="toggleSettings()" style="width:40px; padding:5px; background:none; color:black; font-size:1.5rem;">⚙️</button>
-    </div> -->
-
-    <div style="display:flex; justify-content: space-between; align-items:center; position: relative;">
-        <h2 id="main-title" style="margin:0">Up & Down the River</h2>
+<div class="container" style="position: relative; padding-top: 5px;">
+    
+    <!-- HEADER AREA: min-height controlled to keep settings just above banner -->
+    <div id="header-area" style="position: relative; min-height: 100px; margin-bottom: 5px;">
         
-        <!-- Centered Icon (Absolute) -->
-        <img src="icon.png" alt="Icon" style="position: absolute; left: 50%; transform: translateX(-50%); height: 150px; width: auto;">
+        <!-- Overlapping Logo (Left) -->
+        <div style="position: absolute; left: 0; top: -15px; z-index: 10; pointer-events: none;">
+            <!-- Increased to 150px to match the original "large" look -->
+            <img src="icon.png" alt="Icon" style="height: 150px !important; width: auto !important; display: block;">
+        </div>
 
-        <button onclick="toggleSettings()" style="width:40px; padding:5px; background:none; color:black; font-size:1.5rem; z-index: 10;">⚙️</button>
+        <!-- Right-side Controls: Anchored to the bottom-right -->
+        <div style="position: absolute; right: 0; bottom: 5px; display: flex; flex-direction: column; align-items: flex-end; gap: 0px; z-index: 20;">
+            <!-- Settings Icon -->
+            <button onclick="toggleSettings()" style="width:30px; height:30px; padding:0; background:none; color:black; font-size:1.5rem; border: none; cursor: pointer; opacity: 0.7; line-height: 1;">⚙️</button>
+            
+            <!-- Sync Status / Role Badge -->
+            <div id="sync-status" class="sync-indicator" style="position: static; margin-bottom: -20px;">Initializing...</div>
+        </div>
     </div>
 
-        
-    <div id="sync-status" class="sync-indicator">Initializing...</div>
+    <!-- TOP BANNER (Hidden by default using display: none) -->
+    <div id="game-info-banner" style="display: none; background-color: var(--primary); color: white; min-height: 50px; justify-content: center; align-items: center; border-radius: 8px; margin-bottom: 15px; position: relative;">
+        <div id="banner-text" style="text-transform: uppercase; font-weight: bold; display: flex; gap: 15px; align-items: center; font-size: 0.9rem;">
+            <span id="display-cards"></span>
+            <span>•</span>
+            <span id="display-trump" style="font-size: 1.5rem; line-height: 1; margin-left: 5px;"></span>
+            <span>•</span>
+            <span id="display-round"></span>
+        </div>
+    </div>
 
     <div id="settings-panel" class="settings-panel">
         <h4>Access Configuration</h4>
@@ -165,7 +179,7 @@
     <div id="setup-view">
         <div id="sync-status" class="sync-indicator"></div>
 
-        <div id="resume-msg" style="display:none; text-align:center; padding:10px; background:#fff3cd; margin-bottom:10px; border-radius:8px;">
+        <div id="resume-msg" style="display:none; text-align:center; padding:5px; background:#fff3cd; margin-bottom:10px; border-radius:8px;">
             Unfinished game found. <button onclick="resumeGame()" style="width:auto; padding:5px;">Resume</button>
         </div>
         
@@ -187,11 +201,9 @@
         </div>
     </div>
 
-    <div id="game-view" style="display:none;">
-        <div class="round-header" id="header-ui">
-            <div id="round-number"></div><div id="cards-count"></div><div id="trump-display" class="trump-indicator"></div>
-        </div>
-        <div id="input-grid" class="input-grid"></div>
+    <div id="game-view" style="display:none; padding: 15px;">
+        <!-- The old round-header is removed as it's now in the top banner -->
+        <div id="input-grid" class="input-grid" style="margin-top: 20px;"></div>
         <div class="action-area" style="text-align:center;">
             <div id="bid-warning" class="warning"></div>
             <button id="action-btn" onclick="processPhase()">Lock Bids</button>
@@ -444,9 +456,12 @@
     function initUI() {
         document.getElementById('setup-view').style.display = 'none';
         document.getElementById('game-view').style.display = 'block';
-        const head = document.getElementById('matrix-head');
         
-        // Header stays similar, but ensure it clears properly
+        // SHOW THE BANNER and HIDE THE OLD HEADER AREA
+        document.getElementById('game-info-banner').style.display = 'flex';
+        document.getElementById('header-area').style.display = 'none';
+
+        const head = document.getElementById('matrix-head');
         head.innerHTML = `<tr><th>Edit</th><th>Rd</th><th>T</th>` + 
             players.map(p => `<th colspan="3">${p.name}</th>`).join('') + 
             `</tr><tr><th></th><th></th><th></th>` + 
@@ -458,16 +473,23 @@
     function renderRound() {
         const idx = isEditing ? editRoundIdx : currentIdx;
         const cards = window.currentRounds[idx], trump = getTrump(idx);
-        document.getElementById('round-number').innerText = `ROUND ${idx+1} / ${window.currentRounds.length}`;
-        document.getElementById('cards-count').innerText = `${cards} CARDS`;
-        document.getElementById('trump-display').innerText = trump.l;
-        document.getElementById('trump-display').className = `trump-indicator ${trump.c}`;
+        
+        // Update the Top Banner Text
+        document.getElementById('display-round').innerText = `ROUND ${idx+1} / ${window.currentRounds.length}`;
+        document.getElementById('display-cards').innerText = `${cards} CARDS`;
+        
+        const trumpEl = document.getElementById('display-trump');
+        trumpEl.innerText = trump.l;
+        trumpEl.className = trump.c; // Applies suit-H, suit-D, etc.
+
+        // Update Input Grid
         document.getElementById('input-grid').innerHTML = players.map((p, i) => `
             <div class="input-card ${i === (idx % players.length) ? 'is-dealer' : ''}">
                 <label>${p.name}</label>
                 <input type="number" id="p-input-${i}" min="0" max="${cards}" value="" placeholder="${phase==='SCORING'?(isEditing?p.history[idx].bid:p.currentBid):0}" oninput="validate()">
             </div>
         `).join('');
+        
         document.getElementById('action-btn').innerText = phase === 'BIDDING' ? 'Lock Bids' : 'Submit Results';
         validate();
     }
