@@ -22,7 +22,7 @@ A professional-grade, mobile-responsive scorekeeping application for the card ga
 
 ### 2. Cloud Sync Setup (Google Sheets)
 To enable Cloud Sync and the Hall of Fame features:
-1.  **Copy the Template:** [Click here to open the Google Sheet Template]((https://docs.google.com/spreadsheets/d/1gqupfWu4M_GQGjx7830BLJbUemHJOnC5uIFCpWuWeG8/edit?usp=sharing)).
+1.  **Copy the Template:** [Click here to open the Google Sheet Template](https://docs.google.com/spreadsheets/d/1gqupfWu4M_GQGjx7830BLJbUemHJOnC5uIFCpWuWeG8/edit?usp=sharing).
 2.  Go to **File > Make a copy** to save it to your own Google Drive.
 3.  In your new sheet, go to **Extensions > Apps Script**.
 4.  Click **Deploy > New Deployment**.
@@ -38,6 +38,17 @@ To enable Cloud Sync and the Hall of Fame features:
 * **Dealer Rule:** Total bids cannot equal the number of cards in the round (forcing someone to "go set").
 * **Scoring:** 10 points for making a bid + 1 point per trick. Only trick points are awarded if the bid is missed.
 * **Tournament Logic:** Automatic calculation of rankings, T-Points, and financial penalties based on score thresholds.
+
+## 💰 Financial Statistics & Penalties
+The Hall of Fame tracks financial contributions to the "Pot" based on game performance. All values are calculated automatically upon game finalization:  
+1. Money from Losses
+   Cost: $1.00 per game.
+   Trigger: This penalty is applied only to the player who finishes in last place (the lowest total score) for that specific game.
+2. Money from Penalties (The "Threshold" Rule)
+   Cost: $1.00 per penalty occurrence.
+   Trigger: This is a performance penalty applied if a player's total game score falls below the Tournament Threshold.
+   The Math: The threshold is dynamic based on player count: 170 - (10 x number of players). Player owes $1 for each increment of 10 below the threshold.
+   Example: In a 5-player game, the threshold is 120. Any player finishing with a score lower than 120 owes $1, lower than 110 owes $2.
 
 ## STATISTICS
 * POINTS DISTRIBUTION
