@@ -100,35 +100,37 @@ function archiveGameToTab(gameData) {
   let sheet = ss.getSheetByName("Game Archive");
   if (!sheet) sheet = ss.insertSheet("Game Archive");
 
-  const players = gameData.players;
+  const players = gameData.players; // Current game's players in their current order
   const gameDate = new Date().toLocaleDateString();
-  
   const scriptProp = PropertiesService.getScriptProperties();
   let gameNum = parseInt(scriptProp.getProperty('game_counter') || "0") + 1;
   scriptProp.setProperty('game_counter', gameNum.toString());
 
-  // --- DYNAMIC HEADER LOGIC ---
-  // Calculate how many columns we NEED for this specific game
-  // 4 base columns + 3 columns per player (Bid, Tricks, Score)
-  const requiredColumns = 4 + (players.length * 3);
-  const currentColumns = sheet.getLastColumn();
-  
-  // Setup Headers if the sheet is now empty (which it will be for Game #1)
-  if (sheet.getLastRow() === 0) {
-    let headers = ["Game #", "Date", "Cards", "Trump"];
-    players.forEach(p => {
-      headers.push(`${p.name} Bid`, `${p.name} Tricks`, `${p.name} Score`);
-    });
+  // 1. Ensure all current players have a designated column in the header
+  let headers = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
+  if (headers.length < 4) headers = ["Game #", "Date", "Cards", "Trump"];
 
-    // Overwrite the first row with the expanded header set
-    sheet.getRange(1, 1, 1, headers.length)
-         .setValues([headers])
-         .setFontWeight("bold")
-         .setBackground("#d9ead3");
-  }
-  // -----------------------------
+  players.forEach(player => {
+    // Check if player already exists in headers
+    let playerIdx = headers.indexOf(`${player.name} Score`);
+    if (playerIdx === -1) {
+      // New player! Add their 3 columns to the end of the header array
+      headers.push(`${player.name} Bid`, `${player.name} Tricks`, `${player.name} Score`);
+    }
+  });
 
-  // Dynamic Round Calculation (Standard 52 card deck math)
+  // 2. Update the header row on the sheet
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers])
+       .setFontWeight("bold").setBackground("#d9ead3");
+
+  // 3. Create a Map of where each player's data belongs
+  // Key: Player Name -> Value: Starting Column Index for that player
+  let colMap = {};
+  players.forEach(p => {
+    colMap[p.name] = headers.indexOf(`${p.name} Bid`) + 1; // +1 for 1-based indexing
+  });
+
+  // 4. Prepare the rows
   const maxCards = Math.min(10, Math.floor(52 / players.length));
   const up = Array.from({length: maxCards}, (_, i) => i + 1);
   const down = [...up].reverse().slice(1);
@@ -136,15 +138,28 @@ function archiveGameToTab(gameData) {
 
   let allRows = [];
   for (let r = 0; r < rounds.length; r++) {
-    let row = [gameNum, gameDate, rounds[r], getTrumpLabel(r, players.length)];
+    // Initialize a row full of empty values or zeros based on header length
+    let row = new Array(headers.length).fill(""); 
+    
+    // Set base info
+    row[0] = gameNum;
+    row[1] = gameDate;
+    row[2] = rounds[r];
+    row[3] = getTrumpLabel(r, players.length);
+
+    // Place player data in their SPECIFIC assigned columns
     players.forEach(p => {
       let h = p.history[r] || {bid: 0, tricks: 0, totalAtRound: 0};
-      row.push(h.bid, h.tricks, h.totalAtRound);
+      let startCol = colMap[p.name] - 1; // 0-based index for the array
+      row[startCol] = h.bid;
+      row[startCol + 1] = h.tricks;
+      row[startCol + 2] = h.totalAtRound;
     });
     allRows.push(row);
   }
 
-  sheet.getRange(sheet.getLastRow() + 1, 1, allRows.length, allRows[0].length).setValues(allRows);
+  // 5. Append the data
+  sheet.getRange(sheet.getLastRow() + 1, 1, allRows.length, headers.length).setValues(allRows);
 }
 
 function getTrumpLabel(idx, numPlayers) {
