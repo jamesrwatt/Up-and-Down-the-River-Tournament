@@ -5,7 +5,7 @@ const ADMIN_KEY = "RiverAdmin2026";
  */
 function doGet(e) {
   const scriptProp = PropertiesService.getScriptProperties();
-  const snapshot = scriptProp.getProperty('HOF_SNAPSHOT');
+  const snapshot = scriptProp.getProperty('tStats_SNAPSHOT');
   
   // If we have a saved snapshot, send it immediately!
   if (snapshot) {
@@ -14,11 +14,11 @@ function doGet(e) {
   }
 
   // Fallback: If no snapshot exists (e.g. after a reset), calculate it once
-  const hofData = getRecomputedHOF();
-  const hofString = JSON.stringify(hofData);
-  scriptProp.setProperty('HOF_SNAPSHOT', hofString);
+  const tStatsData = getRecomputedTStats();
+  const tStatsString = JSON.stringify(tStatsData);
+  scriptProp.setProperty('tStats_SNAPSHOT', tStatsString);
   
-  return ContentService.createTextOutput(hofString)
+  return ContentService.createTextOutput(tStatsString)
     .setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -53,14 +53,14 @@ function doPost(e) {
       // 2. Reset the internal game counter to zero
       PropertiesService.getScriptProperties().setProperty('game_counter', "0");
       
-      // 3. Clear the Hall of Fame visual sheet
-      const hofSheet = ss.getSheetByName("Hall of Fame");
-      if (hofSheet) {
-        hofSheet.clear();
+      // 3. Clear the Tournament Stats visual sheet
+      const tStatsSheet = ss.getSheetByName("Tournament Stats");
+      if (tStatsSheet) {
+        tStatsSheet.clear();
       }
 
       // 4. Wipe the Turbo Cache so the next 'GET' calculates from scratch
-      PropertiesService.getScriptProperties().deleteProperty('HOF_SNAPSHOT');
+      PropertiesService.getScriptProperties().deleteProperty('tStats_SNAPSHOT');
       
       return ContentService.createTextOutput("Cloud Wiped Successfully").setMimeType(ContentService.MimeType.TEXT);
     }
@@ -72,15 +72,15 @@ function doPost(e) {
       // Save the raw game data to the Archive sheet
       archiveGameToTab(payload.gameData);
 
-      // Re-calculate the entire Hall of Fame statistics
-      const updatedHof = getRecomputedHOF();
-      const hofString = JSON.stringify(updatedHof);
+      // Re-calculate the entire Tournament Stats statistics
+      const updatedTStats = getRecomputedTStats();
+      const tStatsString = JSON.stringify(updatedTStats);
 
       // Update the visual Google Sheet for people to look at
-      updateHOFSheet(updatedHof);
+      updateTStatsSheet(updatedTStats);
 
       // Update the Turbo Cache so the mobile apps get the new stats instantly
-      PropertiesService.getScriptProperties().setProperty('HOF_SNAPSHOT', hofString);
+      PropertiesService.getScriptProperties().setProperty('tStats_SNAPSHOT', tStatsString);
 
       return ContentService.createTextOutput("Success").setMimeType(ContentService.MimeType.TEXT);
     }
@@ -183,7 +183,7 @@ function getTrumpLabel(idx, numPlayers) {
   return suits[suitIdx % 4];
 }
 
-function getRecomputedHOF() {
+function getRecomputedTStats() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName("Game Archive");
   if (!sheet) return {};
@@ -195,7 +195,7 @@ function getRecomputedHOF() {
   const headers = rawHeaders.map(h => h.toString().replace(/ Bid/gi, "").trim());
 
   const rows = data.slice(1);
-  let hof = {};
+  let tStats = {};
   let games = {};
 
   rows.forEach(row => {
@@ -240,8 +240,8 @@ function getRecomputedHOF() {
     const loserName = sorted[sorted.length - 1].name;
 
     pNames.forEach(pName => {
-      if (!hof[pName]) {
-        hof[pName] = { 
+      if (!tStats[pName]) {
+        tStats[pName] = { 
           tPoints: 0, lossesMoney: 0, penaltyMoney: 0, totalTricks: 0, totalSets: 0, 
           gamesPlayed: 0, gamePoints: 0, bestScore: 0, worstScore: 999, 
           maxTricksGame: 0, minTricksGame: 999, maxSetsGame: 0, minSetsGame: 99, 
@@ -250,7 +250,7 @@ function getRecomputedHOF() {
         };
       }
       const pData = g.players[pName];
-      const s = hof[pName];
+      const s = tStats[pName];
       const rankIdx = sorted.findIndex(x => x.name === pName);
       const tPts = pNames.length - rankIdx;
       let penalty = (pData.total < threshold) ? Math.ceil((threshold - pData.total) / 10) : 0;
@@ -282,20 +282,20 @@ function getRecomputedHOF() {
       s.handHistory = s.handHistory.concat(pData.history);
     });
   });
-  return hof;
+  return tStats;
 }
 
-function updateHOFSheet(hofData) {
+function updateTStatsSheet(tStatsData) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName("Hall of Fame") || ss.insertSheet("Hall of Fame");
+  let sheet = ss.getSheetByName("Tournament Stats") || ss.insertSheet("Tournament Stats");
   sheet.clear();
 
-  const playerNames = Object.keys(hofData).sort((a,b) => hofData[b].tPoints - hofData[a].tPoints);
+  const playerNames = Object.keys(tStatsData).sort((a,b) => tStatsData[b].tPoints - tStatsData[a].tPoints);
   if (playerNames.length === 0) return;
 
   const pointValuesFound = new Set();
   playerNames.forEach(n => {
-    if (hofData[n].tPointsDist) Object.keys(hofData[n].tPointsDist).forEach(v => pointValuesFound.add(Number(v)));
+    if (tStatsData[n].tPointsDist) Object.keys(tStatsData[n].tPointsDist).forEach(v => pointValuesFound.add(Number(v)));
   });
   const sortedPointValues = Array.from(pointValuesFound).sort((a,b) => b-a);
 
@@ -307,7 +307,7 @@ function updateHOFSheet(hofData) {
     rows.push([label.toUpperCase(), ...playerNames.map(() => "")]);
     stats.forEach(stat => {
       let row = [stat.l];
-      playerNames.forEach(name => row.push(stat.fn(hofData[name])));
+      playerNames.forEach(name => row.push(stat.fn(tStatsData[name])));
       rows.push(row);
     });
   };
@@ -393,13 +393,13 @@ function getStreakFromScript(arr, target) {
 /**
  * UPDATED MANUAL REFRESH: Ensures the Turbo cache is updated if you manually edit the sheet.
  */
-function manualHOFRefresh() {
-  const data = getRecomputedHOF();
+function manualTStatsRefresh() {
+  const data = getRecomputedTStats();
   const dataString = JSON.stringify(data);
   
   // Update both the visual sheet and the Turbo cache
-  PropertiesService.getScriptProperties().setProperty('HOF_SNAPSHOT', dataString);
-  updateHOFSheet(data);
+  PropertiesService.getScriptProperties().setProperty('tStats_SNAPSHOT', dataString);
+  updateTStatsSheet(data);
   
   Logger.log("Manual Refresh Complete: Cache and Sheet are synced.");
 }
