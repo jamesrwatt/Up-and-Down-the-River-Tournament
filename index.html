@@ -249,15 +249,15 @@
             console.log("Local Override Active: Using local records.");
             statusEl.innerText = isScoreKeeper ? "Role: ScoreKeeper (Local Session)" : "Role: Viewer (Local)";
             statusEl.style.color = "#2980b9";
-            loadHallOfFame(); 
+            laodTStats(); 
         } else if (CURRENT_CONFIG.url) {
             try {
                 await fetchCloudData(); 
             } catch (err) {
-                loadHallOfFame();
+                laodTStats();
             }
         } else {
-            loadHallOfFame();
+            laodTStats();
         }
         // --- FETCH FIREWALL END ---
         
@@ -284,7 +284,7 @@
 
     async function fetchCloudData() {
         if (!CURRENT_CONFIG.url) {
-            loadHallOfFame(); 
+            laodTStats(); 
             return;
         }
 
@@ -310,11 +310,11 @@
                 document.getElementById('sync-status').style.color = "#7f8c8d";
             }
             
-            loadHallOfFame();
+            laodTStats();
         } catch (e) {
             console.error("Sync Error:", e);
             document.getElementById('sync-status').innerText = "⚠ Sync Failed (Using Local Cache)";
-            loadHallOfFame(); 
+            laodTStats(); 
         }
     }
 
@@ -721,7 +721,7 @@
         return "";
     }
 
-    function loadHallOfFame() {
+    function laodTStats() {
         const tStats = JSON.parse(localStorage.getItem('river_v3_tStats') || "{}");
         const playerNames = Object.keys(tStats).sort((a,b) => tStats[b].tPoints - tStats[a].tPoints);
         if (playerNames.length === 0) {
