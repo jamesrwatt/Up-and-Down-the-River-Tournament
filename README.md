@@ -22,7 +22,7 @@ A professional-grade, mobile-responsive scorekeeping application for the card ga
 
 ### 2. Cloud Sync Setup (Google Sheets)
 To enable Cloud Sync and the Hall of Fame features:
-1.  **Copy the Template:** [Click here to open the Google Sheet Template](https://docs.google.com/spreadsheets/d/1gqupfWu4M_GQGjx7830BLJbUemHJOnC5uIFCpWuWeG8/edit?usp=sharing).
+1.  **Copy the Template:** [Click here to open the Google Sheet Template](https://docs.google.com/spreadsheets/d/1-n6812DZtORzuDD11EAjVi6V_b_L55U9Xf0heUPObSE/edit?usp=sharing).
 2.  Go to **File > Make a copy** to save it to your own Google Drive.
 3.  In your new sheet, go to **Extensions > Apps Script**.
 4.  Click **Deploy > New Deployment**.
