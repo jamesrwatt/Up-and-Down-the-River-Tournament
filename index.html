@@ -46,10 +46,10 @@
         table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
         th, td { border: 1px solid #eee; padding: 8px; text-align: center; }
         
-        /* Hall of Fame */
+        /* Tournament Standings */
         .stats-container { overflow-x: auto; margin-top: 30px; border-top: 2px solid #eee; padding-top: 20px; }
-        .hof-table { width: 100%; min-width: 700px; }
-        .hof-table th { background: var(--primary); color: white; padding: 12px; }
+        .tStats-table { width: 100%; min-width: 700px; }
+        .tStats-table th { background: var(--primary); color: white; padding: 12px; }
         .row-label { font-weight: bold; background: #f8f9fa; text-align: left; width: 300px; padding-left: 15px; border-right: 2px solid #ddd; }
         .group-header { background: #dfe6e9 !important; font-weight: 800; text-transform: uppercase; color: #2d3436; font-size: 0.75rem; text-align: left !important; padding: 12px; }
         .stat-val { font-family: 'Courier New', monospace; font-size: 1.1rem; }
@@ -189,10 +189,10 @@
         </div>
 
         <div class="stats-container">
-            <h3 style="text-align:center">🏆 Hall of Fame</h3>
-            <table class="hof-table">
-                <thead id="hof-head"></thead>
-                <tbody id="hof-body"></tbody>
+            <h3 style="text-align:center">🏆 Tournament Standings</h3>
+            <table class="tStats-table">
+                <thead id="tStats-head"></thead>
+                <tbody id="tStats-body"></tbody>
             </table>
             
             <button onclick="clearStats()" class="scorekeeper-only btn-danger" style="margin-top:20px; width:auto; padding:8px; font-size:0.7rem;">
@@ -288,7 +288,7 @@
             return;
         }
 
-        const body = document.getElementById('hof-body');
+        const body = document.getElementById('tStats-body');
         body.innerHTML = `
             <tr><td colspan="5"><div class="skeleton"></div></td></tr>
             <tr><td colspan="5"><div class="skeleton"></div></td></tr>
@@ -301,7 +301,7 @@
             if (!response.ok) throw new Error("Network Response Fail");
             
             const data = await response.json();
-            localStorage.setItem('river_v3_hof', JSON.stringify(data));
+            localStorage.setItem('river_v3_tStats', JSON.stringify(data));
             
             if (CURRENT_CONFIG.key) {
                 document.getElementById('sync-status').innerText = "✓ Cloud Synced";
@@ -560,7 +560,7 @@
         const maxCards = Math.min(10, Math.floor(52 / players.length));
         const peakIdx = maxCards - 1; // The index where cards are at the maximum
 
-        // No Trump (NT) occurs at the peak round and the rounds immediately flanking it
+        // No Trump (NT) occurs at the peak round and the rounds flanking it by 2
         if (idx === peakIdx - 2 || idx === peakIdx || idx === peakIdx + 2) {
             return {l: 'NT', c: 'suit-NT'};
         }
@@ -607,14 +607,14 @@
         window.isSaving = true;
 
         try {
-            let hof = JSON.parse(localStorage.getItem('river_v3_hof') || "{}");
+            let tStats = JSON.parse(localStorage.getItem('river_v3_tStats') || "{}");
             const sorted = [...players].sort((a, b) => b.total - a.total);        
             const loserName = sorted[sorted.length - 1].name;
             const currentThreshold = 170 - (10 * players.length);
 
             players.forEach(p => {
-                if (!hof[p.name]) {
-                    hof[p.name] = {
+                if (!tStats[p.name]) {
+                    tStats[p.name] = {
                         tPoints: 0, lossesMoney: 0, penaltyMoney: 0, totalTricks: 0, totalSets: 0,
                         gamesPlayed: 0, gamePoints: 0, bestScore: 0, worstScore: 999,
                         maxTricksGame: 0, minTricksGame: 999, maxSetsGame: 0, minSetsGame: 99,
@@ -626,7 +626,7 @@
                 
                 let currentWinStreak = 0;
                 let currentLossStreak = 0;
-                let s = hof[p.name];
+                let s = tStats[p.name];
                 const tPts = players.length - sorted.findIndex(x => x.name === p.name);
                 const penalty = p.total < currentThreshold ? 1 : 0;
                 const loss = p.name === loserName ? 1 : 0;
@@ -669,7 +669,7 @@
                 s.lastPlaceHistory.push(p.name === loserName);
             });
 
-            localStorage.setItem('river_v3_hof', JSON.stringify(hof));
+            localStorage.setItem('river_v3_tStats', JSON.stringify(tStats));
             localStorage.removeItem('river_v3_currentGame');
 
             if (CURRENT_CONFIG.key === ADMIN_SECRET && CURRENT_CONFIG.url) {
@@ -722,21 +722,21 @@
     }
 
     function loadHallOfFame() {
-        const hof = JSON.parse(localStorage.getItem('river_v3_hof') || "{}");
-        const playerNames = Object.keys(hof).sort((a,b) => hof[b].tPoints - hof[a].tPoints);
+        const tStats = JSON.parse(localStorage.getItem('river_v3_tStats') || "{}");
+        const playerNames = Object.keys(tStats).sort((a,b) => tStats[b].tPoints - tStats[a].tPoints);
         if (playerNames.length === 0) {
-            document.getElementById('hof-body').innerHTML = "<tr><td colspan='2' style='text-align:center; padding:20px;'>No game history found. Start a game to see stats!</td></tr>";
+            document.getElementById('tStats-body').innerHTML = "<tr><td colspan='2' style='text-align:center; padding:20px;'>No game history found. Start a game to see stats!</td></tr>";
             return;
         }
 
-        const head = document.getElementById('hof-head');
-        const body = document.getElementById('hof-body');
+        const head = document.getElementById('tStats-head');
+        const body = document.getElementById('tStats-body');
         head.innerHTML = `<tr><th>STATISTICS</th>${playerNames.map(n => `<th>${n}</th>`).join('')}</tr>`;
 
         const pointValuesFound = new Set();
         playerNames.forEach(n => {
-            if (hof[n].tPointsDist) {
-                Object.keys(hof[n].tPointsDist).forEach(v => pointValuesFound.add(Number(v)));
+            if (tStats[n].tPointsDist) {
+                Object.keys(tStats[n].tPointsDist).forEach(v => pointValuesFound.add(Number(v)));
             }
         });
 
@@ -787,9 +787,9 @@
         groups.forEach(g => {
             rowsHtml += `<tr><td colspan="${playerNames.length + 1}" class="group-header">${g.label}</td></tr>`;
             g.stats.forEach(s => {
-                const rowVals = playerNames.map(n => s.fn(hof[n]));
+                const rowVals = playerNames.map(n => s.fn(tStats[n]));
                 rowsHtml += `<tr><td class="row-label">${s.l}</td>` + playerNames.map(n => {
-                    const val = s.fn(hof[n]);
+                    const val = s.fn(tStats[n]);
                     const style = getStatColor(val, rowVals, s.lowerBetter);
                     return `<td class="stat-val" style="${style}">${val}</td>`;
                 }).join('') + `</tr>`;
@@ -803,7 +803,7 @@
         if (!confirm("Are you sure? This will wipe records.")) return;
         
         try {
-            localStorage.removeItem('river_v3_hof');
+            localStorage.removeItem('river_v3_tStats');
             localStorage.setItem('skip_next_fetch', 'true');
 
             if (isAdmin && CURRENT_CONFIG.url && CURRENT_CONFIG.key) {
