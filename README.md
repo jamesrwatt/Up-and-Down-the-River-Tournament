@@ -604,12 +604,6 @@ A: Open **Settings (⚙)** and show them the QR code at the bottom. They scan it
 
 ---
 
-## 🙏 Credits
-
-Built for family game nights. If you play Up and Down the River with your family and this app helps keep score — that's the whole point.
-
----
-
 <div align="center">
 
 **Made with ♥ and ♣ and ♦ and ♠**
