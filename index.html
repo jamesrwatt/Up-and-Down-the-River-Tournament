@@ -111,8 +111,9 @@ body{display:flex;flex-direction:column}
 .section-label{font-size:1rem;color:var(--primary);letter-spacing:.12em;text-transform:uppercase;padding:16px 18px 10px;font-weight:700;border-top:2px solid var(--border);display:flex;align-items:center;justify-content:space-between}
 .stats-outer{overflow:auto;-webkit-overflow-scrolling:touch}
 .stats-table{width:max-content;min-width:100%;border-collapse:collapse;font-size:1.08rem}
-.stats-table th,.stats-table td{padding:12px 16px;text-align:center;border:1px solid var(--border);white-space:nowrap}
+.stats-table th,.stats-table td{padding:6px 10px;text-align:center;border:1px solid var(--border);white-space:nowrap}
 .stats-table th{font-size:1.05rem;color:#fff;background:var(--primary);position:sticky;top:0;z-index:2;font-weight:700;letter-spacing:.04em;border-color:rgba(255,255,255,.15)}
+
 /* First column: stat label — fixed width, left-aligned */
 .stats-table td:first-child,.stats-table th:first-child{text-align:left;position:sticky;left:0;background:var(--card);z-index:1;padding-left:18px;width:260px;min-width:260px;font-size:1rem;color:var(--text2);font-weight:500;border-right:2px solid var(--border2)}
 .stats-table th:first-child{background:var(--primary);z-index:3;color:rgba(255,255,255,.8);font-size:.95rem;font-weight:700;border-right-color:rgba(255,255,255,.25)}
@@ -1348,11 +1349,11 @@ function openRoundAnalytics(scope) {
   emptyEl.style.display = 'none';
   tableEl.style.display = '';
 
-  // Collect all unique players (in sorted-standings order)
+  // Collect all unique players
   const allPlayers = [...new Set(games.flatMap(g => g.players || []))];
 
-  // Build round metadata from the first game that has a roundList, or reconstruct
-  // Map: roundNum → {cards, trump}
+  // Build round metadata: roundNum → {cards, trump}
+  // For all-time we still collect it but only use round number in the table
   const roundMeta = {};
   games.forEach(g => {
     const list = g.roundList || buildRoundList(buildRiver(g.players.length));
@@ -1363,13 +1364,11 @@ function openRoundAnalytics(scope) {
   const sortedRounds = Object.keys(roundMeta).map(Number).sort((a, b) => a - b);
 
   // Count sets per player per round number
-  // setData[roundNum][playerName] = count
   const setData = {};
   sortedRounds.forEach(rn => {
     setData[rn] = {};
     allPlayers.forEach(p => { setData[rn][p] = 0; });
   });
-
   games.forEach(game => {
     (game.rounds || []).forEach(rd => {
       if (!setData[rd.roundNum]) return;
@@ -1382,76 +1381,85 @@ function openRoundAnalytics(scope) {
     });
   });
 
-  // Per-player: find best (min) and worst (max) set count across all rounds
-  // Only colour when there's a meaningful spread (max > min)
-  const playerBest  = {}; // playerName → min set count
-  const playerWorst = {}; // playerName → max set count
+  // Per-player best (min) and worst (max) set count across all rounds
+  const playerBest  = {};
+  const playerWorst = {};
   allPlayers.forEach(p => {
     const counts = sortedRounds.map(rn => setData[rn][p] || 0);
     playerBest[p]  = Math.min(...counts);
     playerWorst[p] = Math.max(...counts);
   });
 
-  // Sort players by total sets ascending (best overall first)
+  // Sort players by total sets ascending
   const sortedPlayers = [...allPlayers].sort((a, b) => {
     const totalA = sortedRounds.reduce((s, rn) => s + (setData[rn][a] || 0), 0);
     const totalB = sortedRounds.reduce((s, rn) => s + (setData[rn][b] || 0), 0);
     return totalA - totalB;
   });
 
-  // Measure player name widths for colgroup (reuse existing canvas measurer)
+  // Measure player col width
   const PAD_PX = 36, MIN_COL = 100;
   const longestPx = Math.max(...sortedPlayers.map(p => measureTextWidth(p)));
   const colW = Math.max(MIN_COL, Math.ceil(longestPx) + PAD_PX);
 
-  // Inject colgroup
+  // ── Colgroup ──────────────────────────────────────────────
+  // Tournament: 1 combined label column (wider to fit "Rnd 10 · 10c · ♠")
+  // All-time:   1 narrow round-number column
   let oldCg = tableEl.querySelector('colgroup');
   if (oldCg) oldCg.remove();
   const cg = document.createElement('colgroup');
-  // Fixed columns: Round#, Cards, Trump
-  ['48px', '56px', '56px'].forEach(w => {
-    const c = document.createElement('col'); c.style.width = w; cg.appendChild(c);
-  });
-  // Player columns
+  const labelColW = scope === 'alltime' ? '72px' : '140px';
+  const lc = document.createElement('col'); lc.style.width = labelColW; cg.appendChild(lc);
   sortedPlayers.forEach(() => {
     const c = document.createElement('col'); c.style.width = colW + 'px'; cg.appendChild(c);
   });
   tableEl.insertBefore(cg, tableEl.firstChild);
 
-  // Header
-  const SUIT_COLOR = { Hearts:'suit-red', Diamonds:'suit-red', Clubs:'suit-blue', Spades:'suit-blue', 'No Trump':'suit-nt' };
-  headerEl.innerHTML = `<th>Rnd</th><th>Cards</th><th>Trump</th>` +
+  // ── Header ────────────────────────────────────────────────
+  const labelHeader = scope === 'alltime' ? 'Rnd' : 'Round · Cards · Trump';
+  headerEl.innerHTML = `<th style="text-align:left">${labelHeader}</th>` +
     sortedPlayers.map(p => `<th>${p}</th>`).join('');
 
-  // Body rows — one per round number
+  // ── Suit symbol helper ────────────────────────────────────
+  const SUIT_COLOR = { Hearts:'suit-red', Diamonds:'suit-red', Clubs:'suit-blue', Spades:'suit-blue', 'No Trump':'suit-nt' };
+
+  // ── Build label cell for each row ─────────────────────────
+  function rowLabel(rn) {
+    if (scope === 'alltime') {
+      return `<td class="mono" style="text-align:left;font-weight:600">Round ${rn}</td>`;
+    }
+    const meta    = roundMeta[rn] || {};
+    const sym     = TRUMP_SYMBOLS[meta.trump] || meta.trump || '—';
+    const suitCls = SUIT_COLOR[meta.trump] || '';
+    // Combined label: "1 · 1c · ♥"
+    const label   = `Round ${rn} &middot; ${meta.cards || '?'} cards &middot; <span class="${suitCls}">${sym}</span>`;
+    return `<td style="text-align:left;white-space:nowrap">${label}</td>`;
+  }
+
+  // ── Body rows ─────────────────────────────────────────────
   let html = '';
 
-  // Totals row first
+  // Totals row
   const totalCells = sortedPlayers.map(p => {
     const total = sortedRounds.reduce((s, rn) => s + (setData[rn][p] || 0), 0);
     return `<td class="mono" style="font-weight:700">${total}</td>`;
   }).join('');
-  html += `<tr class="round-total-row"><td>Total</td><td></td><td></td>${totalCells}</tr>`;
+  const totalLabel = scope === 'alltime'
+    ? `<td style="text-align:left;font-weight:700">Total</td>`
+    : `<td style="text-align:left;font-weight:700">Total</td>`;
+  html += `<tr class="round-total-row">${totalLabel}${totalCells}</tr>`;
 
   sortedRounds.forEach((rn, idx) => {
-    const meta    = roundMeta[rn] || {};
-    const sym     = TRUMP_SYMBOLS[meta.trump] || meta.trump || '—';
-    const suitCls = SUIT_COLOR[meta.trump] || '';
-    const rowCls  = idx % 2 === 0 ? '' : ' class="ra-alt-row"';
-
+    const rowCls = idx % 2 === 0 ? '' : ' class="ra-alt-row"';
     const cells = sortedPlayers.map(p => {
-      const v     = setData[rn][p] || 0;
-      const best  = playerBest[p];
-      const worst = playerWorst[p];
-      const hasSpread = worst > best;
+      const v = setData[rn][p] || 0;
+      const hasSpread = playerWorst[p] > playerBest[p];
       let cls = 'mono';
-      if (hasSpread && v === best)  cls += ' stat-best';
-      if (hasSpread && v === worst) cls += ' stat-worst';
+      if (hasSpread && v === playerBest[p])  cls += ' stat-best';
+      if (hasSpread && v === playerWorst[p]) cls += ' stat-worst';
       return `<td class="${cls}">${v}</td>`;
     }).join('');
-
-    html += `<tr${rowCls}><td class="mono">${rn}</td><td class="mono">${meta.cards || '—'}</td>` +
-      `<td class="${suitCls}">${sym}</td>${cells}</tr>`;
+    html += `<tr${rowCls}>${rowLabel(rn)}${cells}</tr>`;
   });
 
   bodyEl.innerHTML = html;
