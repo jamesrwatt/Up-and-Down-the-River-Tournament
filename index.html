@@ -108,7 +108,7 @@ body{display:flex;flex-direction:column}
 .home-actions .btn-new-game{grid-column:1/-1}
 
 /* ===== STATS TABLE ===== */
-.section-label{font-size:1rem;color:var(--primary);letter-spacing:.12em;text-transform:uppercase;padding:16px 18px 10px;font-weight:700;border-top:2px solid var(--border)}
+.section-label{font-size:1rem;color:var(--primary);letter-spacing:.12em;text-transform:uppercase;padding:16px 18px 10px;font-weight:700;border-top:2px solid var(--border);display:flex;align-items:center;justify-content:space-between}
 .stats-outer{overflow:auto;-webkit-overflow-scrolling:touch}
 .stats-table{width:max-content;min-width:100%;border-collapse:collapse;font-size:1.08rem}
 .stats-table th,.stats-table td{padding:12px 16px;text-align:center;border:1px solid var(--border);white-space:nowrap}
@@ -467,6 +467,10 @@ td.suit-nt{color:var(--muted)}
 [data-theme="dark"] select option{background:#2d3347;color:#dde3ee}
 [data-theme="dark"] select option:checked{background:var(--primary);color:#fff}
 
+/* Round Analytics alternate row */
+.ra-alt-row td{background:#f6f8fa}
+[data-theme="dark"] .ra-alt-row td{background:#1f2638}
+
 /* ===== RESPONSIVE ===== */
 @media(min-width:480px){
   .home-actions{grid-template-columns:1fr 1fr 1fr}
@@ -520,7 +524,10 @@ td.suit-nt{color:var(--muted)}
   </div>
 
   <!-- Standings label + scrollable table fill remaining height -->
-  <div class="section-label">Tournament Standings</div>
+  <div class="section-label">
+    <span>Tournament Standings</span>
+    <button class="btn btn-ghost btn-sm" id="btn-round-analytics-home" style="text-transform:none;letter-spacing:0;font-size:.78rem">&#128200; Round Analytics</button>
+  </div>
   <div class="stats-outer" id="standings-outer">
     <div class="empty-state" id="standings-empty">
       <svg width="48" height="48" viewBox="0 0 48 48"><circle cx="24" cy="24" r="22" stroke="#dde3e8" stroke-width="2" fill="none"/><text x="24" y="30" text-anchor="middle" fill="#dde3e8" font-size="20">&#9827;</text></svg>
@@ -621,7 +628,37 @@ td.suit-nt{color:var(--muted)}
       </div>
     </div>
     <div class="modal-footer" id="lb-footer">
+      <button class="btn btn-ghost btn-sm" id="btn-round-analytics-lb" style="flex:1">&#128200; Round Analytics</button>
       <button class="btn btn-ghost btn-sm" id="btn-lb-sync" style="flex:1">&#8635; Sync Cloud</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== MODAL: ROUND ANALYTICS ========== -->
+<div class="modal-overlay" id="modal-round-analytics">
+  <div class="modal-sheet" style="max-width:1200px">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <div class="modal-title" id="ra-modal-title">&#128200; Round Analytics</div>
+      <button class="modal-close" data-close="modal-round-analytics">&times;</button>
+    </div>
+    <div class="modal-body" style="padding:0;overflow:hidden;display:flex;flex-direction:column">
+      <div style="padding:8px 16px 4px;flex-shrink:0;font-size:.82rem;color:var(--muted)">
+        Sets (missed bids) per round number across all games in scope. <span style="color:var(--success);font-weight:700">Green</span> = fewest sets, <span style="color:var(--accent);font-weight:700">Red</span> = most sets — per player.
+      </div>
+      <div class="stats-outer" style="flex:1;min-height:0">
+        <div class="empty-state" id="ra-empty">
+          <svg width="48" height="48" viewBox="0 0 48 48"><circle cx="24" cy="24" r="22" stroke="#dde3e8" stroke-width="2" fill="none"/><text x="24" y="30" text-anchor="middle" fill="#dde3e8" font-size="20">&#9827;</text></svg>
+          <p>No game data yet.</p>
+        </div>
+        <table class="stats-table" id="ra-table" style="display:none">
+          <thead><tr id="ra-header-row"></tr></thead>
+          <tbody id="ra-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-full" data-close="modal-round-analytics">Close</button>
     </div>
   </div>
 </div>
@@ -683,7 +720,7 @@ td.suit-nt{color:var(--muted)}
       <div class="settings-group">
         <div class="settings-label">Share App (QR Code)</div>
         <div id="qr-container"></div>
-        <div class="qr-url">https://jamesrwatt.github.io/Up-and-Down-the-River-Tournament/</div>
+        <div class="qr-url">https://jamesrwatt.github.io/Up-and-Down-the-River-Tournament-Claude-One-Shot-/</div>
       </div>
       <div style="text-align:center;margin-top:16px">
         <div style="font-size:.7rem;color:var(--muted)">Up &amp; Down the River v1.0</div>
@@ -782,7 +819,7 @@ td.suit-nt{color:var(--muted)}
 // ============================================================
 
 // ── GLOBALS ─────────────────────────────────────────────────
-const APP_URL = 'https://jamesrwatt.github.io/Up-and-Down-the-River-Tournament/';
+const APP_URL = 'https://jamesrwatt.github.io/Up-and-Down-the-River-Tournament-Claude-One-Shot-/';
 const ADMIN_PASSWORD = 'RiverAdmin2026';
 const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbzxho-Nb0NwrvGO6Idc2hOa42u78W8Y86mX9xmhbj55e2l_2hBVf_1RpmsFZ0gYB5jD/exec';
 const DEFAULT_PLAYERS = 'Mom, Georgia, Lucy, Jack, Dad';
@@ -818,6 +855,7 @@ function cacheUI() {
     'new-game-players','player-count-hint','river-preview',
     'btn-start-game',
     'lb-filter-row','lb-empty','lb-table','lb-player-row','lb-body','lb-footer','btn-lb-sync',
+    'ra-modal-title','ra-empty','ra-table','ra-header-row','ra-body',
     'settings-role','settings-password-row','settings-password','settings-gas-url',
     'admin-panel','scorekeeper-panel',
     'btn-push-cloud','btn-clear-tournament-admin','btn-clear-leaderboard-admin',
@@ -1283,6 +1321,143 @@ function renderStatsTable(players, statsObj, tableEl, playerRowEl, bodyEl, empty
 }
 
 // ── RENDER HOME ──────────────────────────────────────────────
+// ── ROUND ANALYTICS ──────────────────────────────────────────
+// Builds a table of sets-per-round-number for each player.
+// scope: 'tournament' uses currentTournament.games, 'alltime' uses allTime.games
+function openRoundAnalytics(scope) {
+  const games  = scope === 'alltime'
+    ? ((allTime && allTime.games) || [])
+    : ((currentTournament && currentTournament.games) || []);
+
+  const titleEl = document.getElementById('ra-modal-title');
+  const emptyEl = document.getElementById('ra-empty');
+  const tableEl = document.getElementById('ra-table');
+  const headerEl = document.getElementById('ra-header-row');
+  const bodyEl   = document.getElementById('ra-body');
+
+  titleEl.textContent = scope === 'alltime'
+    ? '📈 Round Analytics — All Time'
+    : '📈 Round Analytics — Current Tournament';
+
+  if (!games || games.length === 0) {
+    tableEl.style.display = 'none';
+    emptyEl.style.display = 'block';
+    openModal('modal-round-analytics');
+    return;
+  }
+  emptyEl.style.display = 'none';
+  tableEl.style.display = '';
+
+  // Collect all unique players (in sorted-standings order)
+  const allPlayers = [...new Set(games.flatMap(g => g.players || []))];
+
+  // Build round metadata from the first game that has a roundList, or reconstruct
+  // Map: roundNum → {cards, trump}
+  const roundMeta = {};
+  games.forEach(g => {
+    const list = g.roundList || buildRoundList(buildRiver(g.players.length));
+    list.forEach(r => {
+      if (!roundMeta[r.roundNum]) roundMeta[r.roundNum] = { cards: r.cards, trump: r.trump };
+    });
+  });
+  const sortedRounds = Object.keys(roundMeta).map(Number).sort((a, b) => a - b);
+
+  // Count sets per player per round number
+  // setData[roundNum][playerName] = count
+  const setData = {};
+  sortedRounds.forEach(rn => {
+    setData[rn] = {};
+    allPlayers.forEach(p => { setData[rn][p] = 0; });
+  });
+
+  games.forEach(game => {
+    (game.rounds || []).forEach(rd => {
+      if (!setData[rd.roundNum]) return;
+      (rd.scores || []).forEach(s => {
+        const made = (Number(s.bid) === Number(s.tricks));
+        if (!made && setData[rd.roundNum][s.name] !== undefined) {
+          setData[rd.roundNum][s.name]++;
+        }
+      });
+    });
+  });
+
+  // Per-player: find best (min) and worst (max) set count across all rounds
+  // Only colour when there's a meaningful spread (max > min)
+  const playerBest  = {}; // playerName → min set count
+  const playerWorst = {}; // playerName → max set count
+  allPlayers.forEach(p => {
+    const counts = sortedRounds.map(rn => setData[rn][p] || 0);
+    playerBest[p]  = Math.min(...counts);
+    playerWorst[p] = Math.max(...counts);
+  });
+
+  // Sort players by total sets ascending (best overall first)
+  const sortedPlayers = [...allPlayers].sort((a, b) => {
+    const totalA = sortedRounds.reduce((s, rn) => s + (setData[rn][a] || 0), 0);
+    const totalB = sortedRounds.reduce((s, rn) => s + (setData[rn][b] || 0), 0);
+    return totalA - totalB;
+  });
+
+  // Measure player name widths for colgroup (reuse existing canvas measurer)
+  const PAD_PX = 36, MIN_COL = 100;
+  const longestPx = Math.max(...sortedPlayers.map(p => measureTextWidth(p)));
+  const colW = Math.max(MIN_COL, Math.ceil(longestPx) + PAD_PX);
+
+  // Inject colgroup
+  let oldCg = tableEl.querySelector('colgroup');
+  if (oldCg) oldCg.remove();
+  const cg = document.createElement('colgroup');
+  // Fixed columns: Round#, Cards, Trump
+  ['48px', '56px', '56px'].forEach(w => {
+    const c = document.createElement('col'); c.style.width = w; cg.appendChild(c);
+  });
+  // Player columns
+  sortedPlayers.forEach(() => {
+    const c = document.createElement('col'); c.style.width = colW + 'px'; cg.appendChild(c);
+  });
+  tableEl.insertBefore(cg, tableEl.firstChild);
+
+  // Header
+  const SUIT_COLOR = { Hearts:'suit-red', Diamonds:'suit-red', Clubs:'suit-blue', Spades:'suit-blue', 'No Trump':'suit-nt' };
+  headerEl.innerHTML = `<th>Rnd</th><th>Cards</th><th>Trump</th>` +
+    sortedPlayers.map(p => `<th>${p}</th>`).join('');
+
+  // Body rows — one per round number
+  let html = '';
+
+  // Totals row first
+  const totalCells = sortedPlayers.map(p => {
+    const total = sortedRounds.reduce((s, rn) => s + (setData[rn][p] || 0), 0);
+    return `<td class="mono" style="font-weight:700">${total}</td>`;
+  }).join('');
+  html += `<tr class="round-total-row"><td>Total</td><td></td><td></td>${totalCells}</tr>`;
+
+  sortedRounds.forEach((rn, idx) => {
+    const meta    = roundMeta[rn] || {};
+    const sym     = TRUMP_SYMBOLS[meta.trump] || meta.trump || '—';
+    const suitCls = SUIT_COLOR[meta.trump] || '';
+    const rowCls  = idx % 2 === 0 ? '' : ' class="ra-alt-row"';
+
+    const cells = sortedPlayers.map(p => {
+      const v     = setData[rn][p] || 0;
+      const best  = playerBest[p];
+      const worst = playerWorst[p];
+      const hasSpread = worst > best;
+      let cls = 'mono';
+      if (hasSpread && v === best)  cls += ' stat-best';
+      if (hasSpread && v === worst) cls += ' stat-worst';
+      return `<td class="${cls}">${v}</td>`;
+    }).join('');
+
+    html += `<tr${rowCls}><td class="mono">${rn}</td><td class="mono">${meta.cards || '—'}</td>` +
+      `<td class="${suitCls}">${sym}</td>${cells}</tr>`;
+  });
+
+  bodyEl.innerHTML = html;
+  openModal('modal-round-analytics');
+}
+
 function renderHome() {
   const games = currentTournament.games || [];
   const tid = currentTournament.id || '—';
@@ -2289,7 +2464,9 @@ function bindEvents() {
   // Home buttons
   on('btn-new-game',            'click', openNewGame);
   on('btn-resume',              'click', () => { showScreen('game'); renderGameScreen(); });
-  on('btn-leaderboard',         'click', () => { renderLeaderboard(); openModal('modal-leaderboard'); });
+  on('btn-leaderboard',            'click', () => { renderLeaderboard(); openModal('modal-leaderboard'); });
+  on('btn-round-analytics-home',   'click', () => openRoundAnalytics('tournament'));
+  on('btn-round-analytics-lb',     'click', () => openRoundAnalytics('alltime'));
   on('btn-settings',            'click', openSettings);
   on('btn-finalize-save',    'click', doFinalizeGame);
   on('btn-finalize-tournament', 'click', finalizeTournament);
