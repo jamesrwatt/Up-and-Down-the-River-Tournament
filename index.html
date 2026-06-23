@@ -114,7 +114,7 @@ body{display:flex;flex-direction:column}
 .stats-table th,.stats-table td{padding:6px 10px;text-align:center;border:1px solid var(--border);white-space:nowrap}
 .stats-table th{font-size:1.05rem;color:#fff;background:var(--primary);position:sticky;top:0;z-index:2;font-weight:700;letter-spacing:.04em;border-color:rgba(255,255,255,.15)}
 /* First column: stat label — fixed width, left-aligned */
-.stats-table td:first-child,.stats-table th:first-child{text-align:left;position:sticky;top: 1px;left:0;background:var(--card);z-index:1;padding-left:18px;width:260px;min-width:260px;font-size:1rem;color:var(--text2);font-weight:500;border-right:2px solid var(--border2)}
+.stats-table td:first-child,.stats-table th:first-child{text-align:left;position:sticky;left:0;background:var(--card);z-index:1;padding-left:18px;width:260px;min-width:260px;font-size:1rem;color:var(--text2);font-weight:500;border-right:2px solid var(--border2);top:1px}
 .stats-table th:first-child{background:var(--primary);z-index:3;color:rgba(255,255,255,.8);font-size:.95rem;font-weight:700;border-right-color:rgba(255,255,255,.25)}
 /* Player columns: uniform width set via JS on the <col> elements */
 .stats-table col.player-col{width:var(--player-col-w,140px)}
@@ -372,6 +372,24 @@ td.suit-blue{color:var(--primary);font-weight:600}
 td.suit-nt{color:var(--muted)}
 
 /* ===== APP CONTAINER (centres + constrains the whole app) ===== */
+/* Full-height modals — override modal-sheet base with !important where needed */
+.app-modal-sheet{
+  max-width:1200px!important;
+  width:100%!important;
+  height:calc(100vh - 32px)!important;
+  height:calc(100dvh - 32px)!important;
+  max-height:calc(100vh - 32px)!important;
+  max-height:calc(100dvh - 32px)!important;
+  border-radius:16px!important;
+  margin:16px auto!important;
+  animation:none!important;
+  box-shadow:0 4px 30px var(--shadow)!important;
+}
+/* Overlay for app-modal-sheet modals — centre instead of bottom-sheet */
+#modal-leaderboard,#modal-round-analytics{
+  align-items:center!important;
+  justify-content:center!important;
+}
 .app-container{width:100%;max-width:1200px;margin:0 auto;height:100vh;display:flex;flex-direction:column;background:var(--surface);box-shadow:0 4px 30px rgba(0,0,0,.15);overflow:hidden;position:relative}
 @supports (width:100dvw){.app-container{width:min(100dvw,1200px);height:100dvh}}
 .app-container *::-webkit-scrollbar{width:0;height:0;background:transparent}
@@ -478,7 +496,7 @@ td.suit-nt{color:var(--muted)}
 }
 @media(min-width:640px){
   .modal-overlay{align-items:center}
-  .modal-sheet{border-radius:14px;max-height:100vh}
+  .modal-sheet{border-radius:14px;max-height:85vh}
   .modal-handle{display:none}
 }
 </style>
@@ -606,12 +624,12 @@ td.suit-nt{color:var(--muted)}
 
 <!-- ========== MODAL: LEADERBOARD ========== -->
 <div class="modal-overlay" id="modal-leaderboard">
-  <div class="modal-sheet" style="max-width:1200px">
+  <div class="modal-sheet app-modal-sheet">
     <div class="modal-handle"></div>
     <div class="modal-header">
-      <div class="modal-title">&#127942; All-Time Leaderboard</div>
-      <button class="btn btn-ghost btn-sm" id="btn-round-analytics-lb" style="margin-left: 765px;">&#128200; Round Analytics</button>
-      <button class="modal-close" data-close="modal-leaderboard">&times;</button>
+      <div class="modal-title" style="flex:1">&#127942; All-Time Leaderboard</div>
+      <button class="btn btn-ghost btn-sm" id="btn-round-analytics-lb" style="flex-shrink:0;margin-left:0">&#128200; Round Analytics</button>
+      <button class="modal-close" style="margin-left:4px" data-close="modal-leaderboard">&times;</button>
     </div>
     <div class="modal-body" style="padding:0;overflow:hidden;display:flex;flex-direction:column">
       <div style="padding:12px 16px 0;flex-shrink:0">
@@ -636,7 +654,7 @@ td.suit-nt{color:var(--muted)}
 
 <!-- ========== MODAL: ROUND ANALYTICS ========== -->
 <div class="modal-overlay" id="modal-round-analytics">
-  <div class="modal-sheet" style="max-width:1200px">
+  <div class="modal-sheet app-modal-sheet">
     <div class="modal-handle"></div>
     <div class="modal-header">
       <div class="modal-title" id="ra-modal-title">&#128200; Round Analytics</div>
@@ -1431,7 +1449,7 @@ function openRoundAnalytics(scope) {
     const sym     = TRUMP_SYMBOLS[meta.trump] || meta.trump || '—';
     const suitCls = SUIT_COLOR[meta.trump] || '';
     // Combined label: "1 · 1c · ♥"
-    const label   = `Round ${rn} &middot; ${meta.cards || '?'} cards &middot; <span class="${suitCls}">${sym}</span>`;
+    const label   = `Round ${rn} &middot; ${meta.cards || '?'} Cards &middot; <span class="${suitCls}">${sym}</span>`;
     return `<td style="text-align:left;white-space:nowrap">${label}</td>`;
   }
 
